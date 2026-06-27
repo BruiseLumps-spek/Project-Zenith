@@ -11,7 +11,7 @@ The application features a responsive cosmic-themed interface, an interactive 3D
 ## 🌐 Live Demo
 
 > **GitHub Pages:**  
-> https://YOUR_GITHUB_USERNAME.github.io/Project-Zenith/
+>[ https://YOUR_GITHUB_USERNAME.github.io/Project-Zenith/](https://bruiselumps-spek.github.io/Project-Zenith/)
 
 *(Replace with your deployed GitHub Pages URL.)*
 
