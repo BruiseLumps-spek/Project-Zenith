@@ -5,6 +5,47 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Project Zenith — The Celestial Eye</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Orbitron:wght@400;600;700;900&display=swap" rel="stylesheet"/>
+<!-- CesiumJS -->
+<script src="https://unpkg.com/cesium@1.115.0/Build/Cesium/Cesium.js"></script>
+<link href="https://unpkg.com/cesium@1.115.0/Build/Cesium/Widgets/widgets.css" rel="stylesheet"/>
+<style>
+/* ── CESIUM OVERRIDES ── */
+#cesium-container { width:100%; height:100%; border-radius:16px; overflow:hidden; }
+/* Hide Cesium default UI chrome that clashes with our dark theme */
+.cesium-widget-credits,
+.cesium-credit-logoContainer,
+.cesium-credit-textContainer { display:none !important; }
+.cesium-viewer-toolbar { display:none !important; }
+.cesium-viewer-animationContainer { display:none !important; }
+.cesium-viewer-timelineContainer { display:none !important; }
+.cesium-viewer-bottom { display:none !important; }
+.cesium-viewer-fullscreenContainer { display:none !important; }
+/* Thin cyan glow on the Cesium canvas */
+#cesium-container canvas { border-radius:16px; }
+/* Controls overlay */
+#cesium-controls {
+  position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
+  display:flex; gap:8px; z-index:10; pointer-events:auto;
+}
+.cesium-ctrl-btn {
+  background:rgba(0,12,35,0.85); border:1px solid rgba(0,229,255,0.25);
+  color:rgba(0,229,255,0.75); font-family:'Space Grotesk',sans-serif;
+  font-size:10px; letter-spacing:1px; padding:6px 14px; border-radius:20px;
+  cursor:pointer; transition:all .2s; backdrop-filter:blur(10px);
+}
+.cesium-ctrl-btn:hover { background:rgba(0,229,255,0.1); color:#00E5FF; border-color:rgba(0,229,255,0.5); }
+.cesium-ctrl-btn.active { background:rgba(0,229,255,0.15); color:#00E5FF; border-color:rgba(0,229,255,0.6); }
+/* ISS label callout */
+#iss-callout {
+  position:absolute; top:16px; left:20px; z-index:10;
+  background:rgba(0,12,35,0.88); border:1px solid rgba(0,229,255,0.2);
+  border-radius:10px; padding:10px 14px; font-size:11px; color:#fff;
+  font-family:'Space Grotesk',sans-serif; backdrop-filter:blur(12px);
+  display:flex; flex-direction:column; gap:3px;
+}
+#iss-callout .iss-label { font-size:9px; letter-spacing:2px; color:rgba(0,229,255,0.55); }
+#iss-callout .iss-val { font-family:'Orbitron',sans-serif; font-size:13px; font-weight:600; color:#00E5FF; }
+</style>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -103,6 +144,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:14px 32px;display:fl
 .mode-btn.violet{border-color:rgba(180,79,255,0.4);color:var(--violet)}
 .mode-btn:hover{transform:translateY(-4px)}
 .mode-btn .badge{font-size:9px;background:rgba(180,79,255,0.15);color:var(--violet);padding:2px 7px;border-radius:20px;letter-spacing:.5px}
+
 /* ════════ SCREEN 2 — DASHBOARD ════════ */
 #dashboard{padding-top:80px;align-items:stretch}
 .dash-layout{display:grid;grid-template-columns:220px 1fr 240px;gap:16px;width:100%;max-width:1200px}
@@ -117,8 +159,8 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:14px 32px;display:fl
 
 /* CENTER GLOBE */
 .center-panel{background:rgba(0,10,25,0.5);border:1px solid var(--border);border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:500px;position:relative;overflow:hidden}
-.center-panel-label{position:absolute;top:16px;left:20px;font-size:9px;letter-spacing:3px;color:rgba(0,229,255,0.4)}
-.center-panel-engine{position:absolute;top:16px;right:20px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,0.3)}
+.center-panel-label{position:absolute;top:16px;left:20px;font-size:9px;letter-spacing:3px;color:rgba(0,229,255,0.4);z-index:10}
+.center-panel-engine{position:absolute;top:16px;right:20px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,0.3);z-index:10}
 
 /* RIGHT PANEL */
 .right-col{display:flex;flex-direction:column;gap:12px}
@@ -180,6 +222,25 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:14px 32px;display:fl
 ::-webkit-scrollbar{width:4px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:rgba(0,229,255,0.2);border-radius:2px}
+
+/* CONSTELLATION TOGGLE BUTTONS */
+.const-btn{
+  background:rgba(0,10,30,0.7);border:1px solid rgba(0,229,255,0.2);
+  color:rgba(0,229,255,0.45);border-radius:30px;padding:6px 16px;
+  font-family:'Space Grotesk',sans-serif;font-size:11px;letter-spacing:1px;
+  cursor:pointer;transition:all .2s;
+}
+.const-btn:hover{border-color:rgba(0,229,255,0.5);color:rgba(0,229,255,0.8)}
+.const-btn.active{
+  background:rgba(0,229,255,0.08);border-color:rgba(0,229,255,0.45);
+  color:#00E5FF;box-shadow:0 0 10px rgba(0,229,255,0.12);
+}
+
+/* LOCATION BADGE */
+#location-badge{
+  font-size:10px;letter-spacing:1px;color:rgba(0,229,255,0.5);
+  margin-top:10px;transition:color .3s;
+}
 
 /* RESPONSIVE */
 @media(max-width:900px){.dash-layout{grid-template-columns:1fr}.sidebar{display:none}.right-col{grid-row:2}}
@@ -282,6 +343,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:14px 32px;display:fl
     </div>
     <button class="explore-btn" onclick="onExplore()">Explore ↗</button>
   </div>
+  <div id="location-badge">📍 Earth · Tap Explore to geocode your location</div>
 
   <!-- MODE BUTTONS -->
   <div class="mode-btns">
@@ -349,58 +411,22 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:14px 32px;display:fl
       </div>
     </div>
 
-    <!-- CENTER GLOBE PANEL -->
-    <div class="center-panel card fl1">
-      <div class="center-panel-label">3D VISUALIZATION ENGINE · CesiumJS + WebGL</div>
-      <div class="center-panel-engine">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <!-- CENTER GLOBE PANEL — CesiumJS Live 3D Globe -->
+    <div class="center-panel card fl1" style="padding:0;min-height:520px;">
+      <!-- ISS position callout overlaid on Cesium -->
+      <div id="iss-callout">
+        <div class="iss-label"><span class="live-dot"></span>ISS LIVE POSITION</div>
+        <div class="iss-val" id="cesium-iss-pos">Acquiring signal…</div>
+        <div style="font-size:9px;color:rgba(255,255,255,0.35);margin-top:2px" id="cesium-iss-alt">ALT: 408 km · 27,600 km/h</div>
       </div>
-      <svg width="340" height="340" viewBox="0 0 300 300">
-        <defs>
-          <radialGradient id="g2" cx="38%" cy="32%">
-            <stop offset="0%" stop-color="#1a5090"/>
-            <stop offset="50%" stop-color="#0a2248"/>
-            <stop offset="100%" stop-color="#010510"/>
-          </radialGradient>
-          <radialGradient id="a2" cx="50%" cy="50%">
-            <stop offset="72%" stop-color="transparent"/>
-            <stop offset="100%" stop-color="rgba(0,180,255,0.35)"/>
-          </radialGradient>
-          <clipPath id="gc3"><circle cx="150" cy="150" r="115"/></clipPath>
-          <filter id="g3"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-        </defs>
-        <circle cx="150" cy="150" r="128" fill="rgba(0,229,255,0.03)"/>
-        <circle cx="150" cy="150" r="120" fill="rgba(0,100,255,0.05)"/>
-        <circle cx="150" cy="150" r="115" fill="url(#g2)"/>
-        <circle cx="150" cy="150" r="115" fill="url(#a2)"/>
-        <g clip-path="url(#gc3)" opacity="0.55">
-          <ellipse cx="90" cy="135" rx="44" ry="24" fill="#1a6630" transform="rotate(-12 90 135)"/>
-          <ellipse cx="178" cy="112" rx="35" ry="18" fill="#1a6630" transform="rotate(8 178 112)"/>
-          <ellipse cx="195" cy="170" rx="26" ry="14" fill="#1a6630" transform="rotate(-4 195 170)"/>
-          <ellipse cx="108" cy="180" rx="20" ry="12" fill="#1a6630"/>
-          <ellipse cx="240" cy="130" rx="16" ry="10" fill="#1a6630" transform="rotate(15 240 130)"/>
-          <path d="M40 150 Q100 128 150 150 Q200 172 260 150" stroke="rgba(0,150,255,0.35)" stroke-width="1" fill="none"/>
-          <path d="M55 115 Q115 103 158 115 Q200 127 245 115" stroke="rgba(0,150,255,0.25)" stroke-width=".8" fill="none"/>
-          <path d="M55 185 Q115 197 158 185 Q200 173 245 185" stroke="rgba(0,150,255,0.25)" stroke-width=".8" fill="none"/>
-        </g>
-        <g opacity="0.1" clip-path="url(#gc3)">
-          <ellipse cx="150" cy="150" rx="115" ry="35" fill="none" stroke="#00E5FF" stroke-width="1"/>
-          <ellipse cx="150" cy="110" rx="100" ry="28" fill="none" stroke="#00E5FF" stroke-width=".7"/>
-          <ellipse cx="150" cy="190" rx="100" ry="28" fill="none" stroke="#00E5FF" stroke-width=".7"/>
-          <line x1="150" y1="35" x2="150" y2="265" stroke="#00E5FF" stroke-width=".7"/>
-          <line x1="35" y1="150" x2="265" y2="150" stroke="#00E5FF" stroke-width=".7"/>
-        </g>
-        <ellipse id="dash-orbit" cx="150" cy="150" rx="138" ry="42" fill="none" stroke="#00E5FF" stroke-width="2"
-          stroke-dasharray="10 6" transform="rotate(-22 150 150)" opacity="0.8"/>
-        <circle r="7" fill="#00E5FF" filter="url(#g3)">
-          <animateMotion dur="9s" repeatCount="indefinite"><mpath href="#dash-orbit"/></animateMotion>
-          <animate attributeName="r" values="5;9;5" dur="1.5s" repeatCount="indefinite"/>
-        </circle>
-        <g id="dash-sats" filter="url(#g3)" opacity="0.7"></g>
-        <circle cx="150" cy="150" r="115" fill="none" stroke="rgba(0,229,255,0.15)" stroke-width="1.5"/>
-      </svg>
-      <div style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);font-size:10px;letter-spacing:2px;color:rgba(0,229,255,0.35)">
-        CLICK GLOBE TO GET COORDINATES
+      <!-- Cesium viewer fills this div -->
+      <div id="cesium-container"></div>
+      <!-- View mode controls -->
+      <div id="cesium-controls">
+        <button class="cesium-ctrl-btn active" id="btn-globe" onclick="setCesiumView('globe')">🌍 GLOBE</button>
+        <button class="cesium-ctrl-btn" id="btn-iss" onclick="setCesiumView('iss')">🛰 ISS ORBIT</button>
+        <button class="cesium-ctrl-btn" id="btn-location" onclick="setCesiumView('location')">📍 LOCATION</button>
+        <button class="cesium-ctrl-btn" id="btn-space" onclick="setCesiumView('space')">🚀 FROM SPACE</button>
       </div>
     </div>
 
@@ -537,7 +563,324 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:14px 32px;display:fl
     </div>
   </div>
 
-  <SKYJS_PLACEHOLDER>
+  </section>
+
+<script>
+// ══════════════════════════════════════════
+//  NIGHT SKY CANVAS ENGINE
+// ══════════════════════════════════════════
+
+// Constellation line data: each entry is [x%, y%] pairs in canvas-space
+// Positions are approximate alt/az projections for a northern-hemisphere mid-latitude observer
+const CONSTELLATIONS = {
+  orion: {
+    color: '#4D9FFF',
+    stars: [
+      {x:44, y:38, mag:1.6, name:'Betelgeuse'},{x:56, y:38, mag:0.1, name:'Rigel'},
+      {x:50, y:48, mag:1.7, name:'Alnilam'},{x:47, y:48, mag:2.2, name:'Alnitak'},
+      {x:53, y:48, mag:1.7, name:'Mintaka'},{x:40, y:55, mag:2.8, name:'Saiph'},
+      {x:60, y:55, mag:2.1, name:'Bellatrix'},{x:50, y:35, mag:2.8, name:'Meissa'}
+    ],
+    lines:[[0,5],[1,3],[3,2],[2,4],[4,1],[3,6],[4,5],[0,7],[1,7]]
+  },
+  ursamajor: {
+    color:'#00E5FF',
+    stars:[
+      {x:14,y:22,mag:1.8,name:'Dubhe'},{x:20,y:25,mag:2.4,name:'Merak'},
+      {x:22,y:19,mag:2.4,name:'Phecda'},{x:18,y:16,mag:3.3,name:'Megrez'},
+      {x:14,y:13,mag:1.8,name:'Alioth'},{x:10,y:10,mag:2.1,name:'Mizar'},
+      {x:6, y:7, mag:1.9,name:'Alkaid'}
+    ],
+    lines:[[0,1],[1,2],[2,3],[3,0],[3,4],[4,5],[5,6]]
+  },
+  cassiopeia: {
+    color:'#B44FFF',
+    stars:[
+      {x:82,y:15,mag:2.2,name:'Schedar'},{x:86,y:12,mag:2.3,name:'Caph'},
+      {x:79,y:12,mag:2.7,name:'Ruchbah'},{x:76,y:14,mag:3.4,name:'Segin'},
+      {x:83,y:9, mag:3.4,name:'Achird'}
+    ],
+    lines:[[0,1],[1,4],[4,0],[0,2],[2,3]]
+  },
+  scorpius: {
+    color:'#FF4F9B',
+    stars:[
+      {x:60,y:75,mag:1.0,name:'Antares'},{x:57,y:72,mag:2.3,name:'Graffias'},
+      {x:63,y:72,mag:2.8,name:'Dschubba'},{x:65,y:78,mag:2.7,name:'Sargas'},
+      {x:62,y:82,mag:2.9,name:'Shaula'},{x:59,y:80,mag:2.7,name:'Lesath'}
+    ],
+    lines:[[0,1],[0,2],[0,3],[3,4],[4,5]]
+  },
+  leo: {
+    color:'#FFB830',
+    stars:[
+      {x:35,y:40,mag:1.3,name:'Regulus'},{x:38,y:34,mag:2.6,name:'Denebola'},
+      {x:33,y:35,mag:3.4,name:'Zosma'},{x:32,y:38,mag:2.1,name:'Algieba'},
+      {x:30,y:41,mag:3.5,name:'Adhafera'},{x:29,y:38,mag:3.5,name:'Rasalas'}
+    ],
+    lines:[[0,3],[3,4],[4,5],[3,2],[2,1]]
+  },
+  cygnus: {
+    color:'#00E5FF',
+    stars:[
+      {x:72,y:28,mag:1.3,name:'Deneb'},{x:70,y:33,mag:3.2,name:'Sadr'},
+      {x:68,y:38,mag:3.2,name:'Albireo'},{x:66,y:33,mag:3.9,name:'Gienah'},
+      {x:74,y:33,mag:3.9,name:'Delta Cyg'}
+    ],
+    lines:[[0,1],[1,2],[1,3],[1,4]]
+  },
+  lyra: {
+    color:'#4D9FFF',
+    stars:[
+      {x:78,y:32,mag:0.0,name:'Vega'},{x:80,y:36,mag:3.5,name:'Epsilon Lyr'},
+      {x:76,y:36,mag:4.3,name:'Delta Lyr'},{x:79,y:39,mag:3.5,name:'Gamma Lyr'},
+      {x:77,y:39,mag:3.5,name:'Beta Lyr'}
+    ],
+    lines:[[0,1],[0,2],[1,3],[2,4],[3,4]]
+  }
+};
+
+// Bright named stars sprinkled across the canvas
+const NAMED_STARS=[
+  {x:50,y:22,mag:-1.46,name:'Sirius',color:'#b0d8ff'},
+  {x:22,y:30,mag:0.77,name:'Procyon',color:'#fff8e0'},
+  {x:30,y:58,mag:0.34,name:'Arcturus',color:'#ffd07a'},
+  {x:85,y:45,mag:0.12,name:'Altair',color:'#fff'},
+  {x:55,y:62,mag:2.06,name:'Spica',color:'#aac8ff'},
+  {x:90,y:30,mag:1.74,name:'Fomalhaut',color:'#fff'},
+  {x:42,y:68,mag:1.04,name:'Pollux',color:'#ffcc80'},
+  {x:18,y:60,mag:0.50,name:'Capella',color:'#ffe070'}
+];
+
+// Active constellation toggles
+const activeConsts = new Set(['orion','ursamajor','cassiopeia','scorpius','leo','cygnus','lyra']);
+
+function toggleConst(btn){
+  const c = btn.getAttribute('data-c');
+  if(activeConsts.has(c)){ activeConsts.delete(c); btn.classList.remove('active'); }
+  else { activeConsts.add(c); btn.classList.add('active'); }
+  drawSky();
+}
+
+// Sky canvas renderer
+function drawSky(){
+  const canvas = document.getElementById('sky-canvas');
+  if(!canvas) return;
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+
+  // Precession offset from time warp (degrees, small angle)
+  const precOffset = (window.skyPrecessionOffset || 0) * (Math.PI/180);
+  // Latitude affects star altitude: higher lat shifts constellations up/down
+  const latOffset = ((window.observerLat || 0) / 90) * 0.08;
+
+  ctx.clearRect(0,0,W,H);
+
+  // Sky gradient (zenith to horizon)
+  const grad = ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#000208');
+  grad.addColorStop(0.6,'#00040f');
+  grad.addColorStop(1,'rgba(0,12,28,0.95)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,W,H);
+
+  // Milky Way band
+  const mw = ctx.createLinearGradient(W*0.2,0,W*0.7,H);
+  mw.addColorStop(0,'transparent');
+  mw.addColorStop(0.3,'rgba(180,200,255,0.025)');
+  mw.addColorStop(0.5,'rgba(180,200,255,0.04)');
+  mw.addColorStop(0.7,'rgba(180,200,255,0.025)');
+  mw.addColorStop(1,'transparent');
+  ctx.fillStyle = mw;
+  ctx.fillRect(0,0,W,H);
+
+  // Background stars (dim field)
+  const rng = mulberry32(42);
+  for(let i=0;i<1800;i++){
+    const sx = rng()*W;
+    const sy = rng()*H;
+    // Apply longitude rotation offset as a tiny horizontal shift
+    const px = (sx + precOffset * W * 0.15 + (window.observerLon||0)/360*W*0.05 + W) % W;
+    const py = (sy + latOffset * H + H) % H;
+    const r  = rng()*1.2+0.2;
+    const a  = 0.08+rng()*0.5;
+    ctx.beginPath();
+    ctx.arc(px,py,r,0,Math.PI*2);
+    ctx.fillStyle=`rgba(200,210,255,${a})`;
+    ctx.fill();
+  }
+
+  // Draw named bright stars
+  NAMED_STARS.forEach(s=>{
+    const px = applyOffset(s.x/100*W, precOffset, latOffset, W, H, 'x');
+    const py = applyOffset(s.y/100*H, precOffset, latOffset, W, H, 'y');
+    const r  = magToRadius(s.mag, W);
+    drawStarGlow(ctx, px, py, r, s.color||'#fff', 0.9);
+  });
+
+  // Draw constellation lines + stars
+  for(const [key, constellation] of Object.entries(CONSTELLATIONS)){
+    if(!activeConsts.has(key)) continue;
+    const {stars, lines, color} = constellation;
+    // Compute pixel positions with offset
+    const pts = stars.map(s=>({
+      x: applyOffset(s.x/100*W, precOffset, latOffset, W, H, 'x'),
+      y: applyOffset(s.y/100*H, precOffset, latOffset, W, H, 'y'),
+      mag: s.mag, name: s.name
+    }));
+    // Lines
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 0.35;
+    ctx.lineWidth = 1;
+    lines.forEach(([a,b])=>{
+      ctx.beginPath();
+      ctx.moveTo(pts[a].x, pts[a].y);
+      ctx.lineTo(pts[b].x, pts[b].y);
+      ctx.stroke();
+    });
+    ctx.restore();
+    // Stars
+    pts.forEach(p=>{
+      const r = magToRadius(p.mag, W);
+      drawStarGlow(ctx, p.x, p.y, r, color, 1.0);
+    });
+  }
+
+  // Horizon glow
+  const hg = ctx.createLinearGradient(0,H*0.82,0,H);
+  hg.addColorStop(0,'transparent');
+  hg.addColorStop(1,'rgba(0,60,120,0.18)');
+  ctx.fillStyle = hg;
+  ctx.fillRect(0,0,W,H);
+
+  // Update star count based on active consts
+  const total = activeConsts.size * Math.round(280 + Math.random()*40) + 1800;
+  const sc = document.getElementById('sky-star-count');
+  if(sc) sc.textContent = total.toLocaleString();
+
+  // Update sidereal time
+  updateSiderealTime();
+}
+
+function applyOffset(coord, precOff, latOff, W, H, axis){
+  if(axis==='x') return (coord + precOff * W * 0.15 + (window.observerLon||0)/360 * W * 0.05 + W) % W;
+  return (coord + latOff * H + H) % H;
+}
+
+function magToRadius(mag, W){
+  // Brighter = larger. Scale: mag -1.5 → 4px, mag 4 → 1px
+  const scale = W / 1100;
+  return Math.max(0.8, (4.5 - mag) * 0.55) * scale;
+}
+
+function drawStarGlow(ctx, x, y, r, color, alpha){
+  // Outer glow
+  const grd = ctx.createRadialGradient(x,y,0,x,y,r*3.5);
+  grd.addColorStop(0, color.replace(')',' / 0.4)').replace('rgb','rgba') || `rgba(180,220,255,${alpha*0.3})`);
+  grd.addColorStop(1,'transparent');
+  ctx.save();
+  ctx.globalAlpha = alpha * 0.5;
+  ctx.beginPath();
+  ctx.arc(x,y,r*3.5,0,Math.PI*2);
+  ctx.fillStyle = grd;
+  ctx.fill();
+  // Core
+  ctx.globalAlpha = alpha;
+  ctx.beginPath();
+  ctx.arc(x,y,r,0,Math.PI*2);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.restore();
+}
+
+// Simple seedable PRNG (Mulberry32) for reproducible star fields
+function mulberry32(seed){
+  let s=seed;
+  return function(){
+    s|=0; s=s+0x6D2B79F5|0;
+    let t=Math.imul(s^s>>>15,1|s);
+    t=t+Math.imul(t^t>>>7,61|t)^t;
+    return ((t^t>>>14)>>>0)/4294967296;
+  };
+}
+
+function updateSiderealTime(){
+  const now = new Date();
+  const lon = window.observerLon || 0;
+  // Approximate GMST in hours
+  const J2000 = 2451545.0;
+  const JD = now/86400000 + 2440587.5;
+  const T = (JD - J2000) / 36525;
+  let GMST = 280.46061837 + 360.98564736629*(JD-J2000) + 0.000387933*T*T;
+  GMST = ((GMST % 360) + 360) % 360;
+  const LST = (GMST + lon) % 360;
+  const lstH = Math.floor(LST/15);
+  const lstM = Math.floor((LST/15 - lstH) * 60);
+  const el = document.getElementById('sky-time');
+  if(el) el.textContent = `${String(lstH).padStart(2,'0')}h ${String(lstM).padStart(2,'0')}m`;
+}
+
+// Tooltip interaction
+(function setupSkyTooltip(){
+  const canvas = document.getElementById('sky-canvas');
+  if(!canvas) return;
+  const tooltip = document.getElementById('sky-tooltip');
+  canvas.addEventListener('mousemove', e=>{
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const my = (e.clientY - rect.top)  * (canvas.height / rect.height);
+    let hit = null;
+    // Check named stars
+    NAMED_STARS.forEach(s=>{
+      const sx = applyOffset(s.x/100*canvas.width, window.skyPrecessionOffset||0, ((window.observerLat||0)/90)*0.08, canvas.width, canvas.height,'x');
+      const sy = applyOffset(s.y/100*canvas.height, window.skyPrecessionOffset||0, ((window.observerLat||0)/90)*0.08, canvas.width, canvas.height,'y');
+      const d = Math.hypot(mx-sx, my-sy);
+      if(d < 18) hit = {name:s.name, type:'STAR', mag:`Mag ${s.mag.toFixed(2)}`};
+    });
+    // Check constellation stars
+    if(!hit){
+      for(const [key,con] of Object.entries(CONSTELLATIONS)){
+        if(!activeConsts.has(key)) continue;
+        con.stars.forEach(s=>{
+          const sx = applyOffset(s.x/100*canvas.width, window.skyPrecessionOffset||0, ((window.observerLat||0)/90)*0.08, canvas.width, canvas.height,'x');
+          const sy = applyOffset(s.y/100*canvas.height, window.skyPrecessionOffset||0, ((window.observerLat||0)/90)*0.08, canvas.width, canvas.height,'y');
+          const d = Math.hypot(mx-sx, my-sy);
+          if(d < 18) hit = {name:s.name, type:'CONSTELLATION STAR', mag:`Mag ${s.mag.toFixed(2)}`};
+        });
+        if(hit) break;
+      }
+    }
+    if(hit && tooltip){
+      document.getElementById('tt-name').textContent = hit.name;
+      document.getElementById('tt-type').textContent = hit.type;
+      document.getElementById('tt-mag').textContent  = hit.mag;
+      tooltip.style.left = (e.clientX - rect.left + 16) + 'px';
+      tooltip.style.top  = (e.clientY - rect.top  - 10) + 'px';
+      tooltip.style.opacity = '1';
+    } else if(tooltip){
+      tooltip.style.opacity = '0';
+    }
+  });
+  canvas.addEventListener('mouseleave', ()=>{ if(tooltip) tooltip.style.opacity='0'; });
+})();
+
+// Initialise sky canvas size and draw
+(function initSkyCanvas(){
+  const canvas = document.getElementById('sky-canvas');
+  if(!canvas) return;
+  function sizeCanvas(){
+    const wrap = canvas.parentElement;
+    canvas.width  = wrap.offsetWidth;
+    canvas.height = Math.round(wrap.offsetWidth * 0.48);
+  }
+  sizeCanvas();
+  window.addEventListener('resize', ()=>{ sizeCanvas(); drawSky(); });
+  // Redraw every 60s to move sidereal time
+  drawSky();
+  setInterval(drawSky, 60000);
+})();
+</script>
 
 
 
@@ -824,7 +1167,7 @@ function addSatDots(id,cx,cy,n){
   }
 }
 addSatDots('sat-dots',150,150,20);
-addSatDots('dash-sats',150,150,18);
+// dash-sats replaced by CesiumJS live globe
 
 // ─── LIVE ISS DATA ───
 async function fetchISS(){
@@ -839,6 +1182,10 @@ async function fetchISS(){
     ['d-lon','h-lon'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=lon});
     ['d-speed','h-speed'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=spd});
     ['d-alt','h-alt'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=alt});
+    // Update Cesium ISS entity
+    if (typeof updateCesiumISS === 'function') {
+      updateCesiumISS(d.latitude, d.longitude, parseFloat(d.altitude), parseFloat(d.velocity));
+    }
   } catch(e){
     ['d-lat','h-lat'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='28.56°'});
     ['d-lon','h-lon'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='-80.65°'});
@@ -847,12 +1194,44 @@ async function fetchISS(){
 fetchISS();setInterval(fetchISS,5000);
 
 // ─── TIME WARP ───
+window.currentWarpYear = 2026;
 const tw=document.getElementById('time-warp');
 if(tw)tw.addEventListener('input',()=>{
   const v=parseInt(tw.value);
   const y=2026+v;
+  window.currentWarpYear = y;
   document.getElementById('tw-label').textContent=y<0?`${Math.abs(y)} BCE`:`${y} CE`;
+  // Recalculate celestial positions for the warped year
+  applyTimeWarp(y);
 });
+
+// Recalculate and redraw sky positions for a given year
+function applyTimeWarp(year){
+  // Precession offset: ~1.4°/century from J2000 (year 2000)
+  window.skyPrecessionOffset = (year - 2000) * 0.014;
+  // Redraw the night sky with updated positions
+  if(typeof drawSky === 'function') drawSky();
+  // Update planet distances with simplified orbital period scaling
+  const scaleFrom2026 = year - 2026;
+  updatePlanetDisplayForYear(scaleFrom2026);
+}
+
+// Update planet distance labels based on simplified orbital positions
+function updatePlanetDisplayForYear(yearDelta){
+  // Approximate synodic cycles (years). Mars 2.135, Jupiter 1.092, Venus 1.599
+  const marsAngle  = (yearDelta / 2.135) * Math.PI * 2;
+  const jupAngle   = (yearDelta / 1.092) * Math.PI * 2;
+  const venusAngle = (yearDelta / 1.599) * Math.PI * 2;
+  // Earth-Mars distance oscillates ~0.38–2.67 AU (avg 1.52 AU semi-major)
+  const marsDist   = (1.52 - 1.0 * Math.cos(marsAngle)).toFixed(2);
+  const jupDist    = (5.20 - 1.0 * Math.cos(jupAngle)).toFixed(2);
+  const venusDist  = (0.72 + 0.28 * Math.abs(Math.cos(venusAngle))).toFixed(2);
+  const AU = 149.6; // million km per AU
+  const el = (id,txt) => { const e=document.getElementById(id); if(e) e.textContent=txt; };
+  el('p-mars',  `${(marsDist * AU).toFixed(0)}M km`);
+  el('p-jup',   `${(jupDist  * AU).toFixed(0)}M km`);
+  el('p-moon',  `384,400 km`);
+}
 
 // ─── COUNTDOWN ───
 function updateCountdown(){
@@ -869,15 +1248,72 @@ function updateCountdown(){
 }
 updateCountdown();setInterval(updateCountdown,1000);
 
-// ─── EXPLORE ───
-function onExplore(){
-  const loc=document.getElementById('loc-input').value.trim()||'Earth';
-  const hero=document.getElementById('hero');
-  const flash=document.createElement('div');
-  flash.style.cssText='position:fixed;inset:0;background:rgba(0,229,255,0.04);z-index:999;pointer-events:none;transition:opacity .5s';
+// ─── EXPLORE / LOCATION GEOCODE ───
+window.observerLat = 0;
+window.observerLon = 0;
+window.observerLocation = 'Earth';
+
+async function onExplore(){
+  const loc = document.getElementById('loc-input').value.trim();
+  if(!loc) { document.getElementById('dashboard').scrollIntoView({behavior:'smooth'}); return; }
+
+  // Visual flash feedback
+  const flash = document.createElement('div');
+  flash.style.cssText = 'position:fixed;inset:0;background:rgba(0,229,255,0.04);z-index:999;pointer-events:none;transition:opacity .5s';
   document.body.appendChild(flash);
-  setTimeout(()=>{flash.style.opacity='0';setTimeout(()=>flash.remove(),500)},200);
+  setTimeout(()=>{ flash.style.opacity='0'; setTimeout(()=>flash.remove(),500); }, 200);
+
+  try{
+    // Geocode via OpenStreetMap Nominatim (no API key required)
+    const geo = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(loc)}&format=json&limit=1`,
+      { headers: { 'Accept-Language': 'en', 'User-Agent': 'ProjectZenith/1.0' } }
+    );
+    const results = await geo.json();
+    if(results && results.length > 0){
+      const { lat, lon, display_name } = results[0];
+      window.observerLat = parseFloat(lat);
+      window.observerLon = parseFloat(lon);
+      window.observerLocation = display_name.split(',').slice(0,2).join(',').trim();
+
+      // Update location display across the page
+      const shortName = window.observerLocation;
+      const locBadge = document.getElementById('location-badge');
+      if(locBadge) locBadge.textContent = `📍 ${shortName} · ${parseFloat(lat).toFixed(2)}°N, ${parseFloat(lon).toFixed(2)}°E`;
+
+      // Recalculate and redraw the sky for the new coordinates
+      if(typeof drawSky === 'function') drawSky();
+
+      // Fly the Cesium globe to this location and drop a marker
+      if (typeof cesiumFlyToLocation === 'function') {
+        cesiumFlyToLocation(parseFloat(lat), parseFloat(lon), window.observerLocation);
+      }
+
+      // Show a toast notification
+      showLocToast(shortName, parseFloat(lat).toFixed(2), parseFloat(lon).toFixed(2));
+    } else {
+      showLocToast('Location not found', '—', '—');
+    }
+  } catch(e){
+    console.warn('Geocode error:', e);
+    showLocToast('Offline — using default location', '0', '0');
+  }
+
   document.getElementById('dashboard').scrollIntoView({behavior:'smooth'});
+}
+
+function showLocToast(name, lat, lon){
+  const t = document.createElement('div');
+  t.style.cssText = `position:fixed;bottom:32px;left:50%;transform:translateX(-50%);
+    background:rgba(0,12,35,0.95);border:1px solid rgba(0,229,255,0.35);
+    border-radius:12px;padding:12px 22px;font-size:12px;color:#fff;
+    font-family:'Space Grotesk',sans-serif;z-index:9999;
+    box-shadow:0 0 30px rgba(0,229,255,0.2);letter-spacing:.5px;
+    display:flex;align-items:center;gap:10px;transition:opacity .5s;`;
+  t.innerHTML = `<svg width="14" height="14" fill="none" stroke="#00E5FF" stroke-width="2" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+    <span><strong style="color:#00E5FF">${name}</strong> &nbsp;·&nbsp; ${lat}°, ${lon}°</span>`;
+  document.body.appendChild(t);
+  setTimeout(()=>{ t.style.opacity='0'; setTimeout(()=>t.remove(),500); }, 3500);
 }
 
 // ─── AI ASTRONOMER ───
@@ -887,14 +1323,16 @@ async function askAI(){
   const resp=document.getElementById('ai-response');
   resp.textContent='Consulting the stars…';
   resp.style.color='rgba(180,79,255,0.5)';
+  // Build sky context string so Claude knows the current state
+  const skyCtx=`Current observer location: ${window.observerLocation||'Unknown'}. Latitude: ${window.observerLat||'?'}, Longitude: ${window.observerLon||'?'}. Time warp year: ${window.currentWarpYear||2026}.`;
   try{
     const r=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         model:'claude-sonnet-4-6',
-        max_tokens:1000,
-        system:'You are the AI Astronomer for Project Zenith, a real-time sky exploration platform. Answer questions about celestial objects, space, and astronomy in 2-3 sentences. Be inspiring, accurate, and concise.',
+        max_tokens:300,
+        system:`You are the AI Astronomer for Project Zenith, a real-time sky exploration platform. Context: ${skyCtx}. Answer questions about celestial objects, space, and astronomy in 2-3 sentences. Be inspiring, accurate, and concise.`,
         messages:[{role:'user',content:q}]
       })
     });
@@ -908,6 +1346,288 @@ async function askAI(){
   }
 }
 document.getElementById('ai-q')&&document.getElementById('ai-q').addEventListener('keydown',e=>{if(e.key==='Enter')askAI()});
+document.getElementById('loc-input')&&document.getElementById('loc-input').addEventListener('keydown',e=>{if(e.key==='Enter')onExplore()});
+
+// ══════════════════════════════════════════
+//  CESIUMJS — LIVE 3D GLOBE
+// ══════════════════════════════════════════
+
+// Global state (safe to declare before Cesium loads)
+window.cesiumViewer   = null;
+window.issEntity      = null;
+window.issOrbitPath   = null;
+window.locationEntity = null;
+window.cesiumViewMode = 'globe';
+
+// ISS orbit trail: store last N positions
+const ISS_TRAIL     = [];
+const ISS_TRAIL_MAX = 120;
+
+async function initCesium() {
+  // Guard: Cesium script must have loaded
+  if (typeof Cesium === 'undefined') {
+    console.warn('CesiumJS not yet loaded — retrying in 500 ms…');
+    setTimeout(initCesium, 500);
+    return;
+  }
+
+  const container = document.getElementById('cesium-container');
+  if (!container) return;
+
+  // Ion token — the public Cesium sandcastle demo token (free, no sign-up needed)
+  // Replace with your own from https://ion.cesium.com/tokens for production use
+  Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI3YjlhMjNiNS1hMmI4LTRkNTItOTZhOC0yMGNmNjA0MDQ2MjkiLCJpZCI6MjU5LCJpYXQiOjE1MDgxNzQ0NDB9.OduvPnBL2FWrzkB8sNLPt9TdRq1DrpTuCEzI1-Oqt_M';
+
+  try {
+    // Create viewer — no imageryProvider here; we add it via Ion below
+    const viewer = new Cesium.Viewer('cesium-container', {
+      terrainProvider      : new Cesium.EllipsoidTerrainProvider(),
+      imageryProvider      : false,
+      animation            : false,
+      baseLayerPicker      : false,
+      fullscreenButton     : false,
+      geocoder             : false,
+      homeButton           : false,
+      infoBox              : false,
+      navigationHelpButton : false,
+      sceneModePicker      : false,
+      selectionIndicator   : false,
+      timeline             : false,
+      skyAtmosphere        : new Cesium.SkyAtmosphere(),
+    });
+
+    // Add Ion-hosted Natural Earth II imagery (asset 3812) — free, no extra key
+    // This is the correct Ion pattern: IonImageryProvider.fromAssetId()
+    try {
+      const ionImagery = await Cesium.IonImageryProvider.fromAssetId(3812);
+      viewer.imageryLayers.addImageryProvider(ionImagery);
+    } catch (imgErr) {
+      // Fallback: built-in offline Natural Earth tiles bundled with Cesium
+      console.warn('Ion imagery unavailable, using offline fallback:', imgErr);
+      viewer.imageryLayers.addImageryProvider(
+        new Cesium.TileMapServiceImageryProvider({
+          url: Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
+        })
+      );
+    }
+
+    // Dark space background
+    viewer.scene.backgroundColor = new Cesium.Color(0, 0.01, 0.05, 1);
+    viewer.scene.globe.enableLighting = true;
+
+    // Style the atmosphere to match our cyan palette
+    viewer.scene.skyAtmosphere.hueShift       = 0.0;
+    viewer.scene.skyAtmosphere.saturationShift = 0.1;
+    viewer.scene.skyAtmosphere.brightnessShift = -0.1;
+
+    // Subtle dark ocean tint
+    viewer.scene.globe.baseColor = new Cesium.Color(0.01, 0.04, 0.12, 1);
+
+    // Remove default Cesium logo / credits bar
+    viewer.cesiumWidget.creditContainer.style.display = 'none';
+
+    window.cesiumViewer = viewer;
+
+    // Add ISS entity (glowing cyan point + label)
+    window.issEntity = viewer.entities.add({
+      name: 'ISS',
+      position: Cesium.Cartesian3.fromDegrees(0, 0, 408000),
+      point: {
+        pixelSize       : 10,
+        color           : new Cesium.Color(0, 0.898, 1, 1),      // #00E5FF
+        outlineColor    : new Cesium.Color(1, 1, 1, 0.4),
+        outlineWidth    : 2,
+        scaleByDistance : new Cesium.NearFarScalar(1.5e6, 2.0, 1.5e9, 0.5),
+      },
+      label: {
+        text            : 'ISS',
+        font            : '11px Orbitron, monospace',
+        fillColor       : new Cesium.Color(0, 0.898, 1, 0.9),
+        outlineColor    : Cesium.Color.BLACK,
+        outlineWidth    : 2,
+        style           : Cesium.LabelStyle.FILL_AND_OUTLINE,
+        pixelOffset     : new Cesium.Cartesian2(14, -6),
+        scaleByDistance : new Cesium.NearFarScalar(1.5e6, 1.0, 1.5e9, 0.3),
+      }
+    });
+
+    // ISS orbit trail polyline
+    window.issOrbitPath = viewer.entities.add({
+      name: 'ISS-trail',
+      polyline: {
+        positions  : new Cesium.CallbackProperty(() => {
+          return ISS_TRAIL.length >= 2 ? ISS_TRAIL.slice() : [
+            Cesium.Cartesian3.fromDegrees(0, 0, 408000),
+            Cesium.Cartesian3.fromDegrees(1, 0, 408000)
+          ];
+        }, false),
+        width      : 1.5,
+        arcType    : Cesium.ArcType.NONE,
+        material   : new Cesium.PolylineGlowMaterialProperty({
+          glowPower : 0.3,
+          color     : new Cesium.Color(0, 0.898, 1, 0.55),
+        }),
+      }
+    });
+
+    // Default camera: global view
+    viewer.camera.flyTo({
+      destination : Cesium.Cartesian3.fromDegrees(0, 20, 22000000),
+      orientation : { heading: 0, pitch: -Cesium.Math.PI_OVER_TWO, roll: 0 },
+      duration    : 2,
+    });
+
+    // Click on globe → read coordinates
+    viewer.screenSpaceEventHandler.setInputAction(movement => {
+      const picked = viewer.scene.globe.pick(
+        viewer.camera.getPickRay(movement.position), viewer.scene
+      );
+      if (picked) {
+        const cart = Cesium.Cartographic.fromCartesian(picked);
+        const lat  = Cesium.Math.toDegrees(cart.latitude).toFixed(4);
+        const lon  = Cesium.Math.toDegrees(cart.longitude).toFixed(4);
+        showLocToast(`Clicked: ${lat}°N, ${lon}°E`, lat, lon);
+      }
+    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+    console.log('✅ CesiumJS globe initialised');
+  } catch (err) {
+    console.warn('Cesium init error:', err);
+    // Fallback message in container
+    const c = document.getElementById('cesium-container');
+    if (c) c.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:rgba(0,229,255,0.4);font-size:12px;letter-spacing:2px;font-family:Orbitron,sans-serif">3D GLOBE REQUIRES WEBGL</div>';
+  }
+}
+
+// Update ISS entity position from live data
+function updateCesiumISS(lat, lon, altKm, speed) {
+  if (!window.cesiumViewer || !window.issEntity) return;
+  const altM = (altKm || 408) * 1000;
+  const pos  = Cesium.Cartesian3.fromDegrees(parseFloat(lon), parseFloat(lat), altM);
+
+  window.issEntity.position = pos;
+
+  // Append to trail
+  ISS_TRAIL.push(pos);
+  if (ISS_TRAIL.length > ISS_TRAIL_MAX) ISS_TRAIL.shift();
+
+  // Update callout
+  const posEl = document.getElementById('cesium-iss-pos');
+  const altEl = document.getElementById('cesium-iss-alt');
+  if (posEl) posEl.textContent = `${parseFloat(lat).toFixed(2)}°, ${parseFloat(lon).toFixed(2)}°`;
+  if (altEl) altEl.textContent = `ALT: ${Math.round(altKm)} km · ${Math.round(speed).toLocaleString()} km/h`;
+
+  // If locked to ISS view, chase the entity
+  if (window.cesiumViewMode === 'iss' && window.cesiumViewer) {
+    window.cesiumViewer.camera.lookAt(pos, new Cesium.Cartesian3(0, 0, 3500000));
+  }
+}
+
+// View mode switcher
+function setCesiumView(mode) {
+  if (!window.cesiumViewer) return;
+  window.cesiumViewMode = mode;
+  // Update button states
+  ['globe','iss','location','space'].forEach(m => {
+    const btn = document.getElementById('btn-' + m);
+    if (btn) btn.classList.toggle('active', m === mode);
+  });
+
+  const cam = window.cesiumViewer.camera;
+
+  if (mode === 'globe') {
+    cam.flyTo({
+      destination : Cesium.Cartesian3.fromDegrees(
+        window.observerLon || 0, window.observerLat || 20, 22000000
+      ),
+      orientation : { heading: 0, pitch: -Cesium.Math.PI_OVER_TWO, roll: 0 },
+      duration    : 2,
+    });
+  } else if (mode === 'iss') {
+    const issPos = window.issEntity
+      ? window.issEntity.position.getValue
+        ? window.issEntity.position.getValue(Cesium.JulianDate.now())
+        : Cesium.Cartesian3.fromDegrees(0, 0, 408000)
+      : Cesium.Cartesian3.fromDegrees(0, 0, 408000);
+    cam.flyTo({
+      destination : issPos
+        ? new Cesium.Cartesian3(issPos.x, issPos.y, issPos.z + 3500000)
+        : Cesium.Cartesian3.fromDegrees(0, 0, 3908000),
+      duration    : 2,
+    });
+  } else if (mode === 'location') {
+    const lat = window.observerLat || 0;
+    const lon = window.observerLon || 0;
+    // Place or update the observer marker
+    if (window.locationEntity) window.cesiumViewer.entities.remove(window.locationEntity);
+    window.locationEntity = window.cesiumViewer.entities.add({
+      position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+      point: {
+        pixelSize  : 12,
+        color      : new Cesium.Color(1, 0.72, 0.192, 1), // --amber
+        outlineColor: Cesium.Color.WHITE,
+        outlineWidth: 2,
+      },
+      label: {
+        text      : '📍 Observer',
+        font      : '10px Orbitron, monospace',
+        fillColor : new Cesium.Color(1, 0.72, 0.192, 1),
+        pixelOffset: new Cesium.Cartesian2(14, -6),
+      }
+    });
+    cam.flyTo({
+      destination : Cesium.Cartesian3.fromDegrees(lon, lat, 2500000),
+      orientation : { heading: 0, pitch: -Cesium.Math.PI_OVER_FOUR, roll: 0 },
+      duration    : 2,
+    });
+  } else if (mode === 'space') {
+    cam.flyTo({
+      destination : Cesium.Cartesian3.fromDegrees(20, 10, 35786000),
+      orientation : { heading: 0, pitch: -Cesium.Math.PI_OVER_TWO, roll: 0 },
+      duration    : 3,
+    });
+  }
+}
+
+// Fly to geocoded location (called from onExplore after geocoding)
+function cesiumFlyToLocation(lat, lon, name) {
+  if (!window.cesiumViewer) return;
+  // Remove old marker
+  if (window.locationEntity) window.cesiumViewer.entities.remove(window.locationEntity);
+  window.locationEntity = window.cesiumViewer.entities.add({
+    position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+    point: {
+      pixelSize  : 14,
+      color      : new Cesium.Color(1, 0.72, 0.192, 1),
+      outlineColor: Cesium.Color.WHITE,
+      outlineWidth: 2,
+    },
+    label: {
+      text      : '📍 ' + name,
+      font      : '10px Space Grotesk, sans-serif',
+      fillColor : new Cesium.Color(1, 0.72, 0.192, 1),
+      outlineColor: Cesium.Color.BLACK,
+      outlineWidth: 2,
+      style     : Cesium.LabelStyle.FILL_AND_OUTLINE,
+      pixelOffset: new Cesium.Cartesian2(16, -8),
+    }
+  });
+  window.cesiumViewer.camera.flyTo({
+    destination : Cesium.Cartesian3.fromDegrees(lon, lat, 2800000),
+    orientation : { heading: 0, pitch: -Cesium.Math.PI_OVER_FOUR, roll: 0 },
+    duration    : 2.5,
+  });
+}
+
+// Boot Cesium only after the entire page (including external scripts) has loaded.
+// window 'load' fires after all <script src="..."> tags finish executing,
+// which guarantees Cesium.js is fully defined before initCesium is called.
+if (document.readyState === 'complete') {
+  // Page already fully loaded (e.g. script runs after load event)
+  initCesium();
+} else {
+  window.addEventListener('load', initCesium);
+}
 
 // ─── SIDEBAR INTERACTIVITY ───
 document.querySelectorAll('.sidebar-item').forEach(item=>{
